@@ -1,24 +1,29 @@
 # Testing status and how to verify this
 
-## Nothing here has been compiled or run
+## Current state: builds clean, 78 tests pass
 
-The code was written in an environment with no .NET SDK and no way to install one. **39 test cases
-exist as source; zero have ever executed.** Treat the whole solution as unverified until step 1
-passes on a real machine. This is not a hedge - expect compile errors on the first build.
+CI builds the solution and runs the full suite on every push, with a SQL Server service container.
+As of the latest run: **build clean, 78 passed, 0 failed**. Check the CI badge or the Actions tab
+before trusting any claim about what works - including this file.
 
-## Step 1 - build and go green
+That covers what unit tests can cover. It does **not** mean the integration works: nothing has yet
+talked to Amazon, to Omni, or to a database created by a migration rather than by `EnsureCreated`.
+The gaps are listed below and are closed by the manual steps, not by more unit tests.
+
+## Step 1 - run it locally
 
 ```bash
 dotnet build
 dotnet test
 ```
 
-Most likely to break first:
+The persistence tests skip unless a SQL Server is configured:
 
-- `TreatWarningsAsErrors` is on in `Directory.Build.props`, so any nullability warning fails the build.
-- Package versions were written from memory and have never been restored.
-- `Jumbo.AmazonEdi.sln` was hand-written with generated GUIDs and has never been opened by MSBuild.
-- `InternalsVisibleTo` on the Omni project is what lets `OmniInvoiceMapperTests` see the row types.
+```bash
+export AMAZONEDI_TEST_SQL='Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=True'
+```
+
+Without it they report as skipped and the other tests still run.
 
 ## Step 2 - generate the first EF migration
 
@@ -47,6 +52,7 @@ Then read `dotnet ef migrations script` and confirm two things by eye:
 | Repository incl. duplicate rejection, on SQL Server (`EfAmazonInvoiceRepositoryTests`) | The startup migration path (`DatabaseMigrator`) |
 | Approve / skip / retry rules (`EfInvoiceReviewServiceTests`) | |
 | Our models vs Amazon's published schema (`InvoicePayloadContractTests`) | Jumbo Hub wiring - not written yet |
+| | The migration itself - tests use `EnsureCreated`, not `Migrate` |
 
 The right-hand column is deliberate. Those are integration concerns needing a real database, real
 credentials, or code that does not exist yet; they are covered by the manual steps below rather than
@@ -54,15 +60,10 @@ by more unit tests.
 
 Two notes on choices that look odd but are not:
 
-- **Persistence tests run against real SQL Server**, skipping when none is configured. The EF
-  InMemory provider does not enforce unique indexes, so it would let the duplicate-submission test
-  pass while the guard that stops a double send to Amazon was broken; SQLite enforces that but cannot
-  order or aggregate a `DateTimeOffset`, which the invoice date is. Set `AMAZONEDI_TEST_SQL` to a
-  connection string to run them (CI uses a SQL Server service container):
-  ```bash
-  export AMAZONEDI_TEST_SQL='Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=True'
-  ```
-  Without it those tests report as skipped and the rest of the suite still runs.
+- **Persistence tests run against real SQL Server.** The EF InMemory provider does not enforce unique
+  indexes, so it would let the duplicate-submission test pass while the guard that stops a double send
+  to Amazon was broken; SQLite enforces that but cannot order or aggregate a `DateTimeOffset`, which
+  the invoice date is. Only the real provider exercises what production does.
 - **`InvoicePayloadContractTests` checks our models against a vendored copy of Amazon's own
   `vendorInvoices.json`.** If Amazon renames a field or drops an enum value, the build breaks instead
   of production. Refresh the vendored copy with:

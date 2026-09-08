@@ -60,10 +60,12 @@ Dependencies flow one way: `Core` depends on nothing; everything depends on `Cor
 
 ## State of play
 
-Read `docs/testing.md` first - it says exactly what has and has not been verified.
+CI builds and runs the full suite on every push against a SQL Server service container: currently
+**clean build, 78 tests passing**. That is the limit of what is verified - nothing has yet talked to
+Amazon, to Omni, or to a migrated database. Read `docs/testing.md` before trusting anything further.
 
 Still outstanding: the Omni stored procedure (`docs/omni-stored-procedure.md`), the discovery items
 (`docs/discovery.md`, especially which Omni field holds the Amazon PO number), the first EF
 migration, and the Jumbo Hub pages (`docs/porting-to-jumbo-hub.md`).
 
-CI builds and tests on every push - check it before claiming anything compiles.
+Check CI before claiming anything compiles or passes.
