@@ -4,27 +4,19 @@ public sealed class OmniOptions
 {
     public const string SectionName = "AmazonEdi:Omni";
 
-    /// <summary>Read-only connection to Omni. Use an account with SELECT and nothing else.</summary>
+    /// <summary>
+    /// Connection to the SQL Server that hosts the JOLLYJUMBO linked server - not to Omni itself.
+    /// Omni is reached through OPENQUERY inside the stored procedure. Use an account that can execute
+    /// the procedure and nothing else.
+    /// </summary>
     public string ConnectionString { get; set; } = string.Empty;
 
-    public int CommandTimeoutSeconds { get; set; } = 60;
-
     /// <summary>
-    /// Header query. Kept in configuration because the Omni schema - in particular which field holds
-    /// the Amazon PO number - is a discovery item, and getting it wrong should be a config change
-    /// rather than a redeploy.
-    ///
-    /// Must accept @Since, @MaxResults and the @AccountN parameters produced from the configured
-    /// Amazon customer accounts, and must return these columns, in any order:
-    ///   InvoiceNumber, InvoiceDate, PurchaseOrderNumber, CustomerAccountCode, WarehouseCode,
-    ///   CurrencyCode, TotalExcludingTax, TotalTax, TotalIncludingTax
+    /// The procedure that returns invoices ready to send to Amazon. Two result sets: headers, then
+    /// lines. See docs/omni-stored-procedure.md for the full contract.
     /// </summary>
-    public string HeaderQuery { get; set; } = string.Empty;
+    public string StoredProcedureName { get; set; } = "dbo.usp_AmazonEdi_GetInvoicesToSubmit";
 
-    /// <summary>
-    /// Line query, run once per invoice with @InvoiceNumber. Must return:
-    ///   LineNumber, StockCode, Barcode, Asin, PurchaseOrderNumber, Quantity,
-    ///   UnitPriceExcludingTax, LineTotalExcludingTax, LineTax, TaxRate
-    /// </summary>
-    public string LineQuery { get; set; } = string.Empty;
+    /// <summary>OPENQUERY against a linked server is not always quick.</summary>
+    public int CommandTimeoutSeconds { get; set; } = 120;
 }

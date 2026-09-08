@@ -1,4 +1,5 @@
 using Jumbo.AmazonEdi.Jobs;
+using Jumbo.AmazonEdi.Persistence;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
@@ -19,6 +20,10 @@ builder.Services.AddAmazonEdi(builder.Configuration);
 using var host = builder.Build();
 
 var logger = host.Services.GetRequiredService<ILogger<Program>>();
+
+// Same startup check Jumbo Hub performs: apply pending migrations, or refuse to run.
+await host.Services.EnsureAmazonEdiDatabaseAsync();
+
 using var scope = host.Services.CreateScope();
 var job = scope.ServiceProvider.GetRequiredService<AmazonInvoiceSubmissionJob>();
 

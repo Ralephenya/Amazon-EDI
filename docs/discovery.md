@@ -15,8 +15,8 @@ into Omni by hand today, so:
 If it isn't captured reliably, the fix is a data-entry convention, not code. `InvoiceValidator`
 already refuses to send an invoice with no PO number rather than letting Amazon reject it silently.
 
-Once known, fill in `AmazonEdi:Omni:HeaderQuery` and `LineQuery` (see `OmniOptions` for the columns
-each must return).
+Once known, it becomes the `PurchaseOrderNumber` column of the Omni stored procedure - see
+[`omni-stored-procedure.md`](omni-stored-procedure.md) for the full contract.
 
 ## 2. From Vendor Central
 

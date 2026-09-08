@@ -16,12 +16,12 @@ acknowledgements and ASNs are Phase 2+.
 |---|---|
 | `src/Jumbo.AmazonEdi.Core` | Amazon wire models, `InvoiceBuilder`, `InvoiceValidator`, options. No I/O. |
 | `src/Jumbo.AmazonEdi.SpApi` | LWA token client, `VendorInvoicesClient`. Nothing Jumbo-specific. |
-| `src/Jumbo.AmazonEdi.Omni` | Reads invoices out of Omni. Read-only. |
-| `src/Jumbo.AmazonEdi.Persistence` | State store and the on-disk payload archive. |
+| `src/Jumbo.AmazonEdi.Omni` | Reads invoices out of Omni: Dapper over one stored procedure. Read-only. |
+| `src/Jumbo.AmazonEdi.Persistence` | EF Core state store (code-first migrations) and the on-disk payload archive. |
 | `src/Jumbo.AmazonEdi.Jobs` | `AmazonInvoiceSubmissionJob` - the pipeline. |
 | `tools/Jumbo.AmazonEdi.Runner` | Console host for development and dry runs. |
 | `tests/Jumbo.AmazonEdi.Tests` | Unit tests, including a contract check against Amazon's published model. |
-| `db/001_AmazonEdi_Schema.sql` | Tables. Run this before the first run. |
+| `docs/omni-stored-procedure.md` | The contract for the Omni stored procedure. |
 
 ## Hosting in Jumbo Hub
 
@@ -30,6 +30,10 @@ The job is host-agnostic on purpose. In Jumbo Hub:
 ```csharp
 services.AddAmazonEdi(configuration);
 
+// After the host is built, before scheduling: applies pending EF Core migrations,
+// or throws if AutoMigrate is off and the schema is behind.
+await app.Services.EnsureAmazonEdiDatabaseAsync();
+
 RecurringJob.AddOrUpdate<AmazonInvoiceSubmissionJob>(
     "amazon-invoices",
     job => job.RunAsync(CancellationToken.None),
@@ -37,6 +41,28 @@ RecurringJob.AddOrUpdate<AmazonInvoiceSubmissionJob>(
 ```
 
 Hangfire supplies retry, history and the dashboard, so none of that is rebuilt here.
+
+If Jumbo Hub is ever scaled beyond one instance, set `AmazonEdi:Persistence:AutoMigrate` to false and
+run migrations as a deploy step - two instances migrating the same database concurrently is a real
+hazard. With it off, startup fails fast when migrations are pending rather than running against a
+stale schema.
+
+## Database
+
+The schema is EF Core code-first. There is no hand-maintained SQL file - the model is the source of
+truth, and pending migrations are applied at startup.
+
+The first migration has not been generated yet (the code was written in an environment with no .NET
+SDK). Create it once, then commit it:
+
+```bash
+dotnet ef migrations add InitialAmazonEdiSchema \
+  --project src/Jumbo.AmazonEdi.Persistence \
+  --startup-project tools/Jumbo.AmazonEdi.Runner
+```
+
+After a model change, add another migration the same way. To apply them by hand rather than at
+startup: `dotnet ef database update` with the same two project arguments.
 
 ## Running locally
 
@@ -57,7 +83,9 @@ dotnet user-secrets --project tools/Jumbo.AmazonEdi.Runner set "AmazonEdi:SpApi:
 ## Before the first live invoice
 
 1. Fill in the discovery items in [`docs/discovery.md`](docs/discovery.md). Nothing works without them.
-2. Run `db/001_AmazonEdi_Schema.sql`.
+2. Write the Omni stored procedure to the contract in
+   [`docs/omni-stored-procedure.md`](docs/omni-stored-procedure.md), and generate the first EF
+   migration (see **Database** above).
 3. Keep `AmazonEdi:SpApi:UseSandbox` true and confirm the sandbox round-trip.
 4. Dry run against real Omni data with the sandbox still on, and compare every generated payload
    against what was actually keyed into Vendor Central for the same invoices.
