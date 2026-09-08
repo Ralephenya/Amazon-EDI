@@ -8,20 +8,26 @@ namespace Jumbo.AmazonEdi.Tests;
 
 /// <summary>The approval queue's rules. The one that matters most: nothing in the UI may cause an
 /// invoice Amazon already has to be sent a second time.</summary>
-public sealed class EfInvoiceReviewServiceTests : IClassFixture<SqlServerTestDatabase>
+public sealed class EfInvoiceReviewServiceTests : IClassFixture<SqlServerTestDatabase>, IAsyncLifetime
 {
+    private readonly SqlServerTestDatabase _database;
     private readonly IDbContextFactory<AmazonEdiDbContext> _contextFactory;
     private readonly EfAmazonInvoiceRepository _repository;
     private readonly EfInvoiceReviewService _review;
 
     public EfInvoiceReviewServiceTests(SqlServerTestDatabase database)
     {
+        _database = database;
         _contextFactory = database.ContextFactory;
         _repository = SqlServerTestDatabase.IsAvailable ? new EfAmazonInvoiceRepository(_contextFactory) : null!;
         _review = SqlServerTestDatabase.IsAvailable
             ? new EfInvoiceReviewService(_contextFactory, NullLogger<EfInvoiceReviewService>.Instance)
             : null!;
     }
+
+    public Task InitializeAsync() => _database.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private async Task<long> GivenInvoice(AmazonInvoiceStatus status)
     {

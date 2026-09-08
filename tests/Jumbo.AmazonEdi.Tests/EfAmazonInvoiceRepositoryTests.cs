@@ -9,18 +9,24 @@ namespace Jumbo.AmazonEdi.Tests;
 /// Runs against real SQL Server - see <see cref="SqlServerTestDatabase"/> for why neither the EF
 /// InMemory provider nor SQLite will do. Skips when no test server is configured.
 /// </summary>
-public sealed class EfAmazonInvoiceRepositoryTests : IClassFixture<SqlServerTestDatabase>
+public sealed class EfAmazonInvoiceRepositoryTests : IClassFixture<SqlServerTestDatabase>, IAsyncLifetime
 {
+    private readonly SqlServerTestDatabase _database;
     private readonly IDbContextFactory<AmazonEdiDbContext> _contextFactory;
     private readonly EfAmazonInvoiceRepository _repository;
 
     public EfAmazonInvoiceRepositoryTests(SqlServerTestDatabase database)
     {
+        _database = database;
         _contextFactory = database.ContextFactory;
         _repository = SqlServerTestDatabase.IsAvailable
             ? new EfAmazonInvoiceRepository(_contextFactory)
             : null!;
     }
+
+    public Task InitializeAsync() => _database.ResetAsync();
+
+    public Task DisposeAsync() => Task.CompletedTask;
 
     [SqlServerFact]
     public async Task An_invoice_is_registered_with_its_lines()

@@ -48,6 +48,22 @@ public sealed class SqlServerTestDatabase : IAsyncLifetime
         await context.Database.EnsureCreatedAsync();
     }
 
+    /// <summary>Empties the tables. The fixture's database is shared by every test in a class, so
+    /// each test resets it first - otherwise one test's invoice makes the next one's registration
+    /// look like a duplicate.</summary>
+    public async Task ResetAsync()
+    {
+        if (!IsAvailable)
+        {
+            return;
+        }
+
+        await using var context = await ContextFactory.CreateDbContextAsync();
+
+        // Attempts and lines cascade from the invoice.
+        await context.Database.ExecuteSqlRawAsync($"DELETE FROM [{AmazonEdiDbContext.SchemaName}].[Invoice];");
+    }
+
     public async Task DisposeAsync()
     {
         if (!IsAvailable)
