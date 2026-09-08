@@ -59,7 +59,9 @@ public sealed class OmniInvoiceSource : IOmniInvoiceSource
             commandTimeout: _options.CommandTimeoutSeconds,
             cancellationToken: cancellationToken);
 
-        await using var results = await connection.QueryMultipleAsync(command).ConfigureAwait(false);
+        // Plain using: Dapper's GridReader has always been IDisposable, but whether it is also
+        // IAsyncDisposable varies by version, and this compiles against either.
+        using var results = await connection.QueryMultipleAsync(command).ConfigureAwait(false);
 
         var headers = (await results.ReadAsync<InvoiceHeaderRow>().ConfigureAwait(false)).ToList();
         var lines = (await results.ReadAsync<InvoiceLineRow>().ConfigureAwait(false)).ToList();

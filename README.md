@@ -22,6 +22,7 @@ acknowledgements and ASNs are Phase 2+.
 | `tools/Jumbo.AmazonEdi.Runner` | Console host for development and dry runs. |
 | `tests/Jumbo.AmazonEdi.Tests` | Unit tests, including a contract check against Amazon's published model. |
 | `docs/omni-stored-procedure.md` | The contract for the Omni stored procedure. |
+| `docs/testing.md` | What is tested, what is not, and how to verify the whole thing. |
 
 ## Hosting in Jumbo Hub
 
@@ -79,6 +80,12 @@ dotnet user-secrets --project tools/Jumbo.AmazonEdi.Runner set "AmazonEdi:SpApi:
 dotnet user-secrets --project tools/Jumbo.AmazonEdi.Runner set "AmazonEdi:SpApi:Lwa:ClientSecret" "..."
 dotnet user-secrets --project tools/Jumbo.AmazonEdi.Runner set "AmazonEdi:SpApi:Lwa:RefreshToken" "Atzr|..."
 ```
+
+## Testing status
+
+**Nothing in this repository has been compiled or run yet** - see
+[`docs/testing.md`](docs/testing.md) for what that means, what the tests cover, and the verification
+sequence.
 
 ## Before the first live invoice
 
