@@ -32,6 +32,7 @@ public static class ServiceCollectionExtensions
         });
 
         services.AddSingleton<IAmazonInvoiceRepository, EfAmazonInvoiceRepository>();
+        services.AddSingleton<IInvoiceReviewService, EfInvoiceReviewService>();
         services.AddSingleton<DatabaseMigrator>();
 
         return services;
