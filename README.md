@@ -23,6 +23,7 @@ acknowledgements and ASNs are Phase 2+.
 | `tests/Jumbo.AmazonEdi.Tests` | Unit tests, including a contract check against Amazon's published model. |
 | `docs/omni-stored-procedure.md` | The contract for the Omni stored procedure. |
 | `docs/testing.md` | What is tested, what is not, and how to verify the whole thing. |
+| `docs/porting-to-jumbo-hub.md` | Exactly what moves into Jumbo Hub, and what has to be written there. |
 
 ## Hosting in Jumbo Hub
 

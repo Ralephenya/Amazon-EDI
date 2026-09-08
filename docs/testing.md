@@ -44,7 +44,8 @@ Then read `dotnet ef migrations script` and confirm two things by eye:
 | Building the Amazon payload (`InvoiceBuilderTests`) | Any real HTTP call to Amazon (`VendorInvoicesClient`) |
 | Every validation rule incl. the one-cent reconciliation (`InvoiceValidatorTests`) | LWA token exchange, caching, refresh |
 | The job pipeline against fakes (`AmazonInvoiceSubmissionJobTests`) | Real SQL Server behaviour - tests use SQLite |
-| Repository incl. duplicate rejection, on SQLite (`EfAmazonInvoiceRepositoryTests`) | The startup migration path (`DatabaseMigrator`) |
+| Repository incl. duplicate rejection, on SQL Server (`EfAmazonInvoiceRepositoryTests`) | The startup migration path (`DatabaseMigrator`) |
+| Approve / skip / retry rules (`EfInvoiceReviewServiceTests`) | |
 | Our models vs Amazon's published schema (`InvoicePayloadContractTests`) | Jumbo Hub wiring - not written yet |
 
 The right-hand column is deliberate. Those are integration concerns needing a real database, real
@@ -53,9 +54,15 @@ by more unit tests.
 
 Two notes on choices that look odd but are not:
 
-- **Repository tests run on SQLite in-memory, not the EF InMemory provider.** InMemory does not
-  enforce unique indexes, so it would let the duplicate-submission test pass while the real guard was
-  broken.
+- **Persistence tests run against real SQL Server**, skipping when none is configured. The EF
+  InMemory provider does not enforce unique indexes, so it would let the duplicate-submission test
+  pass while the guard that stops a double send to Amazon was broken; SQLite enforces that but cannot
+  order or aggregate a `DateTimeOffset`, which the invoice date is. Set `AMAZONEDI_TEST_SQL` to a
+  connection string to run them (CI uses a SQL Server service container):
+  ```bash
+  export AMAZONEDI_TEST_SQL='Server=localhost,1433;User Id=sa;Password=...;TrustServerCertificate=True'
+  ```
+  Without it those tests report as skipped and the rest of the suite still runs.
 - **`InvoicePayloadContractTests` checks our models against a vendored copy of Amazon's own
   `vendorInvoices.json`.** If Amazon renames a field or drops an enum value, the build breaks instead
   of production. Refresh the vendored copy with:

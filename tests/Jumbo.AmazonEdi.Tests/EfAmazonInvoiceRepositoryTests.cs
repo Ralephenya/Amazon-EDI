@@ -1,39 +1,28 @@
 using Jumbo.AmazonEdi.Core.Abstractions;
 using Jumbo.AmazonEdi.Persistence;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Xunit;
 
 namespace Jumbo.AmazonEdi.Tests;
 
 /// <summary>
-/// Runs against SQLite in-memory rather than the EF InMemory provider. InMemory does not enforce
-/// unique indexes, so it would let the duplicate-submission test pass while the real guard - the
-/// unique index on OmniInvoiceNumber - was broken. That guard is the whole reason we cannot send an
-/// invoice to Amazon twice, so it has to be tested against something that actually enforces it.
+/// Runs against real SQL Server - see <see cref="SqlServerTestDatabase"/> for why neither the EF
+/// InMemory provider nor SQLite will do. Skips when no test server is configured.
 /// </summary>
-public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
+public sealed class EfAmazonInvoiceRepositoryTests : IClassFixture<SqlServerTestDatabase>
 {
-    private readonly SqliteConnection _connection;
     private readonly IDbContextFactory<AmazonEdiDbContext> _contextFactory;
     private readonly EfAmazonInvoiceRepository _repository;
 
-    public EfAmazonInvoiceRepositoryTests()
+    public EfAmazonInvoiceRepositoryTests(SqlServerTestDatabase database)
     {
-        _connection = new SqliteConnection("DataSource=:memory:");
-        _connection.Open();
-
-        _contextFactory = new TestDbContextFactory(_connection);
-
-        using var context = _contextFactory.CreateDbContext();
-        context.Database.EnsureCreated();
-
-        _repository = new EfAmazonInvoiceRepository(_contextFactory);
+        _contextFactory = database.ContextFactory;
+        _repository = SqlServerTestDatabase.IsAvailable
+            ? new EfAmazonInvoiceRepository(_contextFactory)
+            : null!;
     }
 
-    public void Dispose() => _connection.Dispose();
-
-    [Fact]
+    [SqlServerFact]
     public async Task An_invoice_is_registered_with_its_lines()
     {
         var registered = await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None);
@@ -46,7 +35,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Equal(2, invoice.Source.Lines.Count);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task The_same_invoice_number_cannot_be_registered_twice()
     {
         Assert.True(await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None));
@@ -56,7 +45,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Single(tracked);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task Decimals_round_trip_without_being_rounded()
     {
         await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None);
@@ -70,7 +59,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Equal(810.60m, tracked[0].Source.TotalIncludingTax);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task Setting_a_status_records_the_reason_alongside_it()
     {
         await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None);
@@ -84,7 +73,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Equal("No Amazon PO number.", record.LastError);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task A_successful_submission_is_recorded_with_its_transaction_id_and_an_attempt_row()
     {
         await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None);
@@ -113,7 +102,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Contains("transactionId", attempt.ResponseJson!, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task A_failed_submission_goes_back_to_validated_and_numbers_its_attempts()
     {
         await _repository.TryRegisterAsync(TestData.Invoice(), CancellationToken.None);
@@ -141,7 +130,7 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Null(record.SubmittedAtUtc);
     }
 
-    [Fact]
+    [SqlServerFact]
     public async Task The_watermark_is_the_latest_invoice_date_we_have_seen()
     {
         Assert.Null(await _repository.GetLatestInvoiceDateAsync(CancellationToken.None));
@@ -152,19 +141,4 @@ public sealed class EfAmazonInvoiceRepositoryTests : IDisposable
         Assert.Equal(new DateTimeOffset(2026, 9, 1, 10, 0, 0, TimeSpan.FromHours(2)), watermark);
     }
 
-    private sealed class TestDbContextFactory : IDbContextFactory<AmazonEdiDbContext>
-    {
-        private readonly SqliteConnection _connection;
-
-        public TestDbContextFactory(SqliteConnection connection) => _connection = connection;
-
-        public AmazonEdiDbContext CreateDbContext()
-        {
-            var options = new DbContextOptionsBuilder<AmazonEdiDbContext>()
-                .UseSqlite(_connection)
-                .Options;
-
-            return new AmazonEdiDbContext(options);
-        }
-    }
 }

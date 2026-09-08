@@ -10,6 +10,27 @@ jobs:
   build:
     runs-on: ubuntu-latest
 
+    # The persistence tests run against real SQL Server: the EF InMemory provider does not enforce
+    # unique indexes (which is what stops a double send to Amazon) and SQLite cannot order a
+    # DateTimeOffset. Only the real provider exercises what production does.
+    services:
+      sqlserver:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: 'Y'
+          MSSQL_SA_PASSWORD: 'Str0ng!TestPassw0rd'
+        ports:
+          - 1433:1433
+        options: >-
+          --health-cmd "/opt/mssql-tools18/bin/sqlcmd -C -S localhost -U sa -P 'Str0ng!TestPassw0rd' -Q 'SELECT 1'"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 20
+          --health-start-period 30s
+
+    env:
+      AMAZONEDI_TEST_SQL: 'Server=localhost,1433;User Id=sa;Password=Str0ng!TestPassw0rd;TrustServerCertificate=True;Encrypt=False'
+
     steps:
       - uses: actions/checkout@v4
 
